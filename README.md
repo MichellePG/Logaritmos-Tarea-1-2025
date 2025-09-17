@@ -17,12 +17,14 @@ Los datos de entrada corresponden a temperaturas reales de la estación Quinta N
 Logaritmos-Tarea-1-2025/
 │
 ├── include/ # Archivos de cabecera (.hpp)
-│ └── 
+│ └── nodo.hpp # Definición de la estructura Nodo
 │
 ├── src/ # Código fuente (.cpp)
-│ ├── 
+│ ├── main.cpp # Programa para ...
 │
-├── datos/ # Datos para experimentar (.cpp)
+├── datos/ # Datos para experimentar
+│ ├── datos_sample.txt # Primeros 50 pares llave-valor en forma de texto
+│ └── datos.bin # Datos de temperatura (67 millones de pares)
 │
 ├── Makefile # Instrucciones simples de compilación
 └── README.md # Este archivo
