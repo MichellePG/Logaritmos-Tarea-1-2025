@@ -23,8 +23,7 @@ Logaritmos-Tarea-1-2025/
 │ ├── main.cpp # Programa para ...
 │
 ├── datos/ # Datos para experimentar
-│ ├── datos_sample.txt # Primeros 50 pares llave-valor en forma de texto
-│ └── datos.bin # Datos de temperatura (67 millones de pares)
+│ └── datos_sample.txt # Primeros 50 pares llave-valor en forma de texto
 │
 ├── Makefile # Instrucciones simples de compilación
 └── README.md # Este archivo
