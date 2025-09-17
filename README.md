@@ -11,5 +11,39 @@ Este proyecto implementa árboles **B** y **B+** simulando memoria externa.
 Se soportan operaciones de inserción de pares `(llave, valor)` y búsqueda por rango `[ℓ, u]`.  
 Los datos de entrada corresponden a temperaturas reales de la estación Quinta Normal. 
 
+## Estructura del Proyecto
+
+```
+Logaritmos-Tarea-1-2025/
+│
+├── include/ # Archivos de cabecera (.hpp)
+│ └── 
+│
+├── src/ # Código fuente (.cpp)
+│ ├── 
+│
+├── datos/ # Datos para experimentar (.cpp)
+│
+├── Makefile # Instrucciones simples de compilación
+└── README.md # Este archivo
+```
+
 ## Compilación
-Compilar con:
+
+Para compilar los programas, ejecute:
+
+```bash
+make
+```
+
+## Uso
+
+
+
+## Limpieza
+
+Para limpiar los archivos generados:
+
+```bash
+make clean
+```
