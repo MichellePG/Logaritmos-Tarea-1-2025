@@ -28,8 +28,3 @@ Thumbs.db
 # Datos grandes
 datos/*.bin
 *.bin
-
-# Python 
-__pycache__/
-*.pyc
-.venv/
