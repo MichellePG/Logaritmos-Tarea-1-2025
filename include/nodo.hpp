@@ -3,8 +3,9 @@
 
 #include <array>
 
-// B=4 para debug inicial.
-const int B = 4;  
+#ifndef B
+#define B 4 // B=4 para debug inicial.
+#endif
 
 // Par (llave, valor)
 struct Par {

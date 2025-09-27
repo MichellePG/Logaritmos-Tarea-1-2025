@@ -1,0 +1,35 @@
+# Compilados / builds
+build/
+dist/
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.dylib
+*.exe
+*.out
+
+# Herramientas/IDE
+.vscode/
+.idea/
+*.code-workspace
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+
+# Logs y temporales
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# Datos grandes
+datos/*.bin
+*.bin
+
+# Python 
+__pycache__/
+*.pyc
+.venv/
