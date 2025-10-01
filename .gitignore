@@ -1,1 +1,20 @@
-datos/datos.bin
+# Compilados / builds
+build/
+dist/
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.dylib
+*.exe
+*.out
+
+# Datos
+datos/*.bin
+*.bin
+tarea1
+resultados.csv
+
+# Herramientas/IDE
+.vscode/

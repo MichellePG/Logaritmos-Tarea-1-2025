@@ -34,7 +34,8 @@ Logaritmos-Tarea-1-2025/
 │ └── bplustree.cpp # Implementación del Árbol B+
 │
 ├── datos/ # Carpeta de datos para pruebas
-│ └── datos.bin # Archivo binario de pares (clave, valor)
+│ ├── datos_sample.txt # Sample de 50 pares llave-valor en texto
+│ └── datos.bin # Archivo binario de pares (clave, valor) no incluido en este repositorio
 │
 ├── Makefile # Instrucciones simples de compilación
 └── README.md # Este archivo
@@ -49,6 +50,12 @@ make
 ```
 
 Esto generará un ejecutable tarea1.
+
+Para recompilar desde cero:
+
+```bash
+make clean && make
+```
 
 ## Uso
 
@@ -85,10 +92,25 @@ Donde:
 - IOs(lec) = lecturas desde disco simuladas.
 - t(ms) = tiempo total en milisegundos.
 
+### Experimentación completa
+
+Para correr automáticamente la experimentación pedida en el enunciado (N = 2^15 … 2^26, 50 consultas aleatorias por cada N), ejecute:
+
+```bash
+make run-experimento
+```
+Esto genera un archivo resultados.csv con el siguiente formato:
+
+N,arbol,nodos,bytes,t_creacion_ms,io_crea_lec,io_crea_esc,t_busq_ms_prom,io_busq_lec_prom
+32768,B,132,540672,43.6,130777,33159,1.03,2.46
+32768,B+,132,540672,37.8,130777,33159,1.11,3.42
+...
+
 ## Parámetros principales
 - --build : construye árboles desde un archivo binario de datos.
 - --query : ejecuta una consulta por rango [ℓ, u].
 - --bplus : indica que la consulta se hace en Árbol B+ (si no se pasa, usa Árbol B).
+- --experimento : corre la experimentación completa y genera un CSV.
 - --N <num> : número de pares a cargar desde el archivo.
 - --datos <ruta> : archivo binario de entrada (datos.bin).
 - --out-b <ruta> : archivo de salida del Árbol B (default b_tree.bin).

@@ -5,6 +5,7 @@
 #include <chrono>
 #include "btree.hpp"
 #include "bplustree.hpp"
+#include <random>
 
 struct Crono {
     std::chrono::high_resolution_clock::time_point t0;
@@ -20,6 +21,7 @@ struct Args {
     bool construir;
     bool consultar;
     bool usar_bplus;
+    bool experimento;
     size_t N;
     std::string ruta_datos;
     std::string ruta_b;
@@ -28,7 +30,7 @@ struct Args {
     int32_t U;
 
     Args()
-    : construir(false), consultar(false), usar_bplus(false),
+    : construir(false), consultar(false), usar_bplus(false), experimento(false),
       N(0), ruta_datos(""),
       ruta_b("b_tree.bin"), ruta_bplus("bplus_tree.bin"),
       L(0), U(0) {}
@@ -41,6 +43,7 @@ static Args leer_args(int argc, char** argv) {
         if (s == "--build") a.construir = true;
         else if (s == "--query") a.consultar = true;
         else if (s == "--bplus") a.usar_bplus = true;
+        else if (s == "--experimento") a.experimento = true;
         else if (s == "--N" && i + 1 < argc) a.N = std::stoull(argv[++i]);
         else if (s == "--datos" && i + 1 < argc) a.ruta_datos = argv[++i];
         else if (s == "--out-b" && i + 1 < argc) a.ruta_b = argv[++i];
@@ -136,7 +139,7 @@ int main(int argc, char** argv) {
                           << "  IOs(lec)=" << ios.lecturas
                           << "  t(ms)=" << tiempo << "\n";
             } else {
-                // Consultar en B leyendo desde dico
+                // Consultar en B leyendo desde disco
                 IOStats ios;
                 Crono t; t.iniciar();
                 std::vector<Par> res = BTree().consulta_rango(args.ruta_b, args.L, args.U, &ios);
@@ -148,9 +151,78 @@ int main(int argc, char** argv) {
             return 0;
         }
 
+        if (args.experimento) {
+            if (args.ruta_datos.empty()) {
+                std::cerr << "Uso: --experimento --datos <ruta_datos.bin>\n";
+                return 1;
+            }
+
+            std::cout << "N,arbol,nodos,bytes,t_creacion_ms,io_crea_lec,io_crea_esc,t_busq_ms_prom,io_busq_lec_prom\n";
+
+            std::mt19937_64 rng(std::random_device{}());
+            std::uniform_int_distribution<int> dist(1546300800, 1754006400);
+
+            for (int e = 15; e <= 26; e++) {
+                size_t N = 1ull << e;
+                std::vector<Par> pares = leer_pares_bin(args.ruta_datos, N);
+                if (pares.empty()) break;
+
+                // B
+                BTree arbolB;
+                Crono t1; t1.iniciar();
+                for (auto& p : pares) arbolB.insertar(p.clave, p.valor);
+                double tiempoB = t1.ms();
+                IOStats ioB = arbolB.disco.stats;
+                arbolB.serializar("b_tree.bin");
+
+                // 50 queries
+                double suma_ms_B=0; double suma_io_B=0;
+                for (int q=0;q<50;q++){
+                    int L = dist(rng);
+                    int U = L+604800;
+                    IOStats ios;
+                    Crono tq; tq.iniciar();
+                    auto res = BTree().consulta_rango("b_tree.bin",L,U,&ios);
+                    (void)res;
+                    suma_ms_B += tq.ms();
+                    suma_io_B += ios.lecturas;
+                }
+
+                std::cout << N << ",B," << arbolB.disco.cantidad() << "," << arbolB.disco.cantidad()*sizeof(Nodo)
+                          << "," << tiempoB << "," << ioB.lecturas << "," << ioB.escrituras
+                          << "," << (suma_ms_B/50.0) << "," << (suma_io_B/50.0) << "\n";
+
+                // B+
+                BPlusTree arbolBP;
+                Crono t2; t2.iniciar();
+                for (auto& p : pares) arbolBP.insertar(p.clave, p.valor);
+                double tiempoBP = t2.ms();
+                IOStats ioBP = arbolBP.disco.stats;
+                arbolBP.serializar("bplus_tree.bin");
+
+                double suma_ms_BP=0; double suma_io_BP=0;
+                for (int q=0;q<50;q++){
+                    int L = dist(rng);
+                    int U = L+604800;
+                    IOStats ios;
+                    Crono tq; tq.iniciar();
+                    auto res = BPlusTree().consulta_rango("bplus_tree.bin",L,U,&ios);
+                    (void)res;
+                    suma_ms_BP += tq.ms();
+                    suma_io_BP += ios.lecturas;
+                }
+
+                std::cout << N << ",B+," << arbolBP.disco.cantidad() << "," << arbolBP.disco.cantidad()*sizeof(Nodo)
+                          << "," << tiempoBP << "," << ioBP.lecturas << "," << ioBP.escrituras
+                          << "," << (suma_ms_BP/50.0) << "," << (suma_io_BP/50.0) << "\n";
+            }
+            return 0;
+        }
+
         std::cerr << "Ejemplos:\n"
                   << "  ./tarea1 --build --N 32768 --datos datos/datos.bin\n"
-                  << "  ./tarea1 --query --l 1546300800 --u 1546905600 --bplus\n";
+                  << "  ./tarea1 --query --l 1546300800 --u 1546905600 --bplus\n"
+                  << "  ./tarea1 --experimento --datos datos/datos.bin > resultados.csv\n";
         return 0;
 
     } catch (const std::exception& e) {
