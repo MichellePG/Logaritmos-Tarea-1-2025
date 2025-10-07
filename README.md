@@ -37,7 +37,7 @@ Logaritmos-Tarea-1-2025/
 │ ├── datos_sample.txt # Sample de 50 pares llave-valor en texto
 │ └── datos.bin # Archivo binario de pares (clave, valor) no incluido en este repositorio
 │
-├── Makefile # Instrucciones simples de compilación
+├── Makefile # Instrucciones de compilación y ejecución
 └── README.md # Este archivo
 ```
 
@@ -118,7 +118,7 @@ N,arbol,nodos,bytes,t_creacion_ms,io_crea_lec,io_crea_esc,t_busq_ms_prom,io_busq
 
 ## Limpieza
 
-Para limpiar los archivos generados:
+Para eliminar binarios y objetos compilados:
 
 ```bash
 make clean
