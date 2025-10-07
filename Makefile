@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Iinclude -Wall
+CXXFLAGS = -std=c++17 -Wall -O2 -Iinclude
 
 SRC = $(wildcard src/*.cpp)
 OBJ = $(SRC:.cpp=.o)
@@ -13,5 +13,6 @@ $(EXEC): $(OBJ)
 clean:
 	rm -f src/*.o $(EXEC)
 
-run:
-	./tarea1 datos/datos_sample.txt
+run-experimento: $(EXEC)
+	./$(EXEC) --experimento --datos datos/datos.bin > resultados.csv
+	@echo "Resultados guardados en resultados.csv"

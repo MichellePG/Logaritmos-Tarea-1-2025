@@ -1,47 +1,34 @@
-#ifndef BTREE_HPP
-#define BTREE_HPP
-
-#include "disco.hpp"
+#pragma once
 #include <vector>
-
-// BTree (árbol B clásico)
-// En hojas se almacenan pares (llave, valor)
-// En internos se usan solo las llaves
+#include <string>
+#include "node.hpp"
+#include "disk.hpp"
 
 class BTree {
 public:
-    explicit BTree(DiscoSimulado* d);
+    DiskArray disco; // almacenamiento en RAM
 
-    // --- Búsqueda --- 
-    // Retorna pares (llave, valor) encontrados en hojas.
-    std::vector<Par> buscarRango(int l, int u) const;
+    BTree();
 
-    int raizIndex() const {
-        return raiz;
-    }
-    void setRaiz(int idx) {
-        raiz = idx;
-    }
+    // Resultado al dividir (split) un nodo lleno
+    struct ResultadoSplit {
+        Nodo izq;
+        Nodo der;
+        Par mediana;
+    };
 
-    // --- Inserción --- (TO DO)
+    static ResultadoSplit partir_nodo(const Nodo& lleno);
 
-    // --- Split --- (TO DO)
+    // Inserta una clave en el árbol
+    void insertar(int32_t clave, float valor);
 
+    // Serializa el árbol completo a un archivo binario
+    void serializar(const std::string& ruta);
+
+    // Retorna todos los pares con clave entre [L, U]
+    std::vector<Par> consulta_rango(const std::string& ruta, int32_t L, int32_t U, IOStats* out_io);
 
 private:
-    DiscoSimulado* disco {nullptr};
-    int raiz {-1};
-
-    // --- Búsqueda --- 
-    void buscarRangoRec(int pos, int l, int u, std::vector<Par>& out) const;
-
-    // Dado un nodo interno n y una llave x, retorna el índice de hijo por donde bajar.
-    static int hijoPara(const Nodo& n, int x);
-
-    // --- Inserción --- (TO DO)
-
-    // --- Split --- (TO DO)
-
+    // Inserción en un nodo interno no lleno
+    Nodo insertar_en_interno(size_t idx, Nodo actual, int32_t clave, float valor);
 };
-
-#endif

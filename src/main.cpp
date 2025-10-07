@@ -1,196 +1,232 @@
-#include "nodo.hpp"
-#include "disco.hpp"
-#include "bplustree.hpp"
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
-#include <sstream>
-#include <algorithm>
-#include <cctype>
-#include <cstdio>
+#include <chrono>
+#include "btree.hpp"
+#include "bplustree.hpp"
+#include <random>
 
-
-// --- Auxiliar ---
-// Construye hojas a partir de 'pares' ordenados por llave
-// Fija 'idx_primera_hoja' al índice de la primera hoja creada
-static bool construir_hojas_desde_pares(DiscoSimulado& disco, const std::vector<Par>& pares, int& idx_primera_hoja) {
-    if (pares.empty()) return false;
-
-    idx_primera_hoja = -1;
-    size_t i = 0;
-
-    int  prev_idx   = -1;
-    Nodo prev_hoja{};
-    bool tengo_prev = false;
-
-    while (i < pares.size()) {
-        Nodo hoja{};
-        hoja.es_interno = 0;
-        hoja.k = 0;
-        hoja.siguiente = -1;
-
-        for (int j = 0; j < B && i < pares.size(); ++j, ++i)
-            hoja.llaves_valores[hoja.k++] = pares[i];
-
-        int idx = disco.append(hoja);
-        if (idx_primera_hoja == -1) idx_primera_hoja = idx;
-
-        if (tengo_prev) {
-            prev_hoja.siguiente = idx;
-            disco.escribir(prev_idx, prev_hoja); // no lee del disco
-        }
-        prev_idx   = idx;
-        prev_hoja  = hoja;   // copia en RAM
-        tengo_prev = true;
+struct Crono {
+    std::chrono::high_resolution_clock::time_point t0;
+    void iniciar() { t0 = std::chrono::high_resolution_clock::now(); }
+    double ms() const {
+        auto t1 = std::chrono::high_resolution_clock::now();
+        return std::chrono::duration<double, std::milli>(t1 - t0).count();
     }
-    return true;
+};
+
+// Estructura utilizada para leer argumentos de línea de comandos
+struct Args {
+    bool construir;
+    bool consultar;
+    bool usar_bplus;
+    bool experimento;
+    size_t N;
+    std::string ruta_datos;
+    std::string ruta_b;
+    std::string ruta_bplus;
+    int32_t L;
+    int32_t U;
+
+    Args()
+    : construir(false), consultar(false), usar_bplus(false), experimento(false),
+      N(0), ruta_datos(""),
+      ruta_b("b_tree.bin"), ruta_bplus("bplus_tree.bin"),
+      L(0), U(0) {}
+};
+
+static Args leer_args(int argc, char** argv) {
+    Args a;
+    for (int i = 1; i < argc; i++) {
+        std::string s = argv[i];
+        if (s == "--build") a.construir = true;
+        else if (s == "--query") a.consultar = true;
+        else if (s == "--bplus") a.usar_bplus = true;
+        else if (s == "--experimento") a.experimento = true;
+        else if (s == "--N" && i + 1 < argc) a.N = std::stoull(argv[++i]);
+        else if (s == "--datos" && i + 1 < argc) a.ruta_datos = argv[++i];
+        else if (s == "--out-b" && i + 1 < argc) a.ruta_b = argv[++i];
+        else if (s == "--out-bp" && i + 1 < argc) a.ruta_bplus = argv[++i];
+        else if (s == "--l" && i + 1 < argc) a.L = std::stoi(argv[++i]);
+        else if (s == "--u" && i + 1 < argc) a.U = std::stoi(argv[++i]);
+    }
+    return a;
 }
 
-// --- Auxiliar ---
-// Carga desde texto (sample). 
-// Ordena por llave y construye hojas.
-static bool cargar_sample_a_hojas(DiscoSimulado& disco,
-                                  const std::string& path,
-                                  int& idx_primera_hoja)
-{
-    std::ifstream file(path);
-    if (!file.is_open()) {
-        std::cerr << "[ERROR] No puede abrir " << path << ". Verificar la ruta.\n";
-        return false;
-    }
+// Lee N pares (clave, valor) desde un binario plano (int32, float).
+static std::vector<Par> leer_pares_bin(const std::string& ruta, size_t N) {
+    std::vector<Par> v;
+    v.reserve(N);
 
-    std::vector<Par> pares;
-    pares.reserve(1024);
+    std::ifstream in(ruta.c_str(), std::ios::binary);
+    if (!in) throw std::runtime_error("No pude abrir datos.bin: " + ruta);
 
-    std::string line;
-    size_t linea_num = 0;
-    while (std::getline(file, line)) {
-        linea_num++;
-
-        auto notspace = [](int c){
-            return !std::isspace(c); 
-        };
-        line.erase(line.begin(), std::find_if(line.begin(), line.end(), notspace));
-        line.erase(std::find_if(line.rbegin(), line.rend(), notspace).base(), line.end());
-        if (line.empty()) continue;
-
-        if (!std::isdigit((unsigned char)line[0]) && line[0] != '-') { // Ignorar líneas que no comienzan con dígito o '-'
-            continue;
-        }
-
-        std::replace(line.begin(), line.end(), ',', '.'); // Reemplazar ',' por '.' en caso de que el float use coma decimal
-
-        std::istringstream iss(line);
-        long llaveL; double valorD;
-        if (!(iss >> llaveL >> valorD)) {
-            std::cerr << "[WARNING] Línea " << linea_num << " no se pudo parsear: \"" << line << "\"\n";
-            continue;
-        }
+    for (size_t i = 0; i < N; i++) {
         Par p;
-        p.llave = (int)llaveL;
-        p.valor = (float)valorD;
-        pares.push_back(p);
+        in.read(reinterpret_cast<char*>(&p.clave), 4);
+        in.read(reinterpret_cast<char*>(&p.valor), 4);
+        if (!in) break; // por si el archivo es más corto que N
+        v.push_back(p);
     }
-    file.close();
-
-    if (pares.empty()) {
-        std::cerr << "[ERROR] El archivo " << path << " está vacío o no se pudo parsear.\n";
-        return false;
-    }
-
-    std::sort(pares.begin(), pares.end(), [](const Par& a, const Par& b){
-        return a.llave < b.llave; 
-    });
-
-    return construir_hojas_desde_pares(disco, pares, idx_primera_hoja);
+    return v;
 }
-
-// --- Auxiliar ---
-// Carga desde binario (pares int-float)
-// Ordena por llave y construye hojas   
-static bool cargar_bin_a_hojas(DiscoSimulado& disco, const std::string& path_bin, int& idx_primera_hoja, size_t max_pares = 1'000'000) {
-    FILE* f = std::fopen(path_bin.c_str(), "rb");
-    if (!f) {
-        std::cerr << "[ERROR] No puede abrir " << path_bin << " en binario.\n";
-        return false;
-    }
-
-    std::vector<Par> pares;
-    pares.reserve(max_pares);
-
-    while (pares.size() < max_pares) {
-        int   llave;
-        float valor;
-        size_t r1 = std::fread(&llave, sizeof(int),   1, f);
-        size_t r2 = std::fread(&valor, sizeof(float), 1, f);
-        if (r1 != 1 || r2 != 1) break; // fin de archivo o error
-        pares.push_back({llave, valor}); 
-    }
-    std::fclose(f);
-
-    if (pares.empty()) {
-        std::cerr << "[ERROR] No se leyeron pares desde " << path_bin << " (¿ruta correcta?).\n";
-        return false;
-    }
-
-    std::sort(pares.begin(), pares.end(), [](const Par& a, const Par& b){
-        return a.llave < b.llave;
-    });
-
-    return construir_hojas_desde_pares(disco, pares, idx_primera_hoja);
-}
-
-// --- Programa principal ---
 
 int main(int argc, char** argv) {
-    DiscoSimulado disco;
+    std::ios::sync_with_stdio(false);
+    std::cin.tie(nullptr);
 
-    if (argc < 2) {
-        std::cerr << "Uso: " << argv[0] << " <ruta_a_datos_sample.txt | ruta_a_datos.bin> [MAX_PARES]\n";
-        return 1;
+    Args args = leer_args(argc, argv);
+
+    try {
+        if (args.construir) {
+            if (args.N == 0 || args.ruta_datos.empty()) {
+                std::cerr << "Uso: --build --N <num> --datos <ruta_datos.bin> "
+                             "[--out-b <b_tree.bin>] [--out-bp <bplus_tree.bin>]\n";
+                return 1;
+            }
+
+            // Cargar datos
+            std::vector<Par> pares = leer_pares_bin(args.ruta_datos, args.N);
+
+            // Construir Árbol B en RAM
+            BTree arbolB;
+            Crono t1; t1.iniciar();
+            for (size_t i = 0; i < pares.size(); ++i)
+                arbolB.insertar(pares[i].clave, pares[i].valor);
+            double tiempoB = t1.ms();
+            IOStats ioB = arbolB.disco.stats;
+
+            // Serializar Árbol B a archivo
+            arbolB.serializar(args.ruta_b);
+
+            std::cerr << "B:  tiempo(ms)=" << tiempoB
+                      << "  IOsRAM L/E=" << ioB.lecturas << "/" << ioB.escrituras
+                      << "  nodos=" << arbolB.disco.cantidad() << "\n";
+
+            // Construir Árbol B+ en RAM
+            BPlusTree arbolBP;
+            Crono t2; t2.iniciar();
+            for (size_t i = 0; i < pares.size(); ++i)
+                arbolBP.insertar(pares[i].clave, pares[i].valor);
+            double tiempoBP = t2.ms();
+            IOStats ioBP = arbolBP.disco.stats;
+
+            // Serializar Árbol B+ a archivo
+            arbolBP.serializar(args.ruta_bplus);
+
+            std::cerr << "B+: tiempo(ms)=" << tiempoBP
+                      << "  IOsRAM L/E=" << ioBP.lecturas << "/" << ioBP.escrituras
+                      << "  nodos=" << arbolBP.disco.cantidad() << "\n";
+
+            return 0;
+        }
+
+        if (args.consultar) {
+            if (args.U == 0) {
+                std::cerr << "Uso: --query --l <L> --u <U> [--bplus] "
+                             "[--out-b <b_tree.bin>] [--out-bp <bplus_tree.bin>]\n";
+                return 1;
+            }
+
+            if (args.usar_bplus) {
+                // Consultar en B+ leyendo desde disco
+                IOStats ios;
+                Crono t; t.iniciar();
+                std::vector<Par> res = BPlusTree().consulta_rango(args.ruta_bplus, args.L, args.U, &ios);
+                double tiempo = t.ms();
+                std::cout << "#res=" << res.size()
+                          << "  IOs(lec)=" << ios.lecturas
+                          << "  t(ms)=" << tiempo << "\n";
+            } else {
+                // Consultar en B leyendo desde disco
+                IOStats ios;
+                Crono t; t.iniciar();
+                std::vector<Par> res = BTree().consulta_rango(args.ruta_b, args.L, args.U, &ios);
+                double tiempo = t.ms();
+                std::cout << "#res=" << res.size()
+                          << "  IOs(lec)=" << ios.lecturas
+                          << "  t(ms)=" << tiempo << "\n";
+            }
+            return 0;
+        }
+
+        if (args.experimento) {
+            if (args.ruta_datos.empty()) {
+                std::cerr << "Uso: --experimento --datos <ruta_datos.bin>\n";
+                return 1;
+            }
+
+            std::cout << "N,arbol,nodos,bytes,t_creacion_ms,io_crea_lec,io_crea_esc,t_busq_ms_prom,io_busq_lec_prom\n";
+
+            std::mt19937_64 rng(std::random_device{}());
+            std::uniform_int_distribution<int> dist(1546300800, 1754006400);
+
+            for (int e = 15; e <= 26; e++) {
+                size_t N = 1ull << e;
+                std::vector<Par> pares = leer_pares_bin(args.ruta_datos, N);
+                if (pares.empty()) break;
+
+                // B
+                BTree arbolB;
+                Crono t1; t1.iniciar();
+                for (auto& p : pares) arbolB.insertar(p.clave, p.valor);
+                double tiempoB = t1.ms();
+                IOStats ioB = arbolB.disco.stats;
+                arbolB.serializar("b_tree.bin");
+
+                // 50 queries
+                double suma_ms_B=0; double suma_io_B=0;
+                for (int q=0;q<50;q++){
+                    int L = dist(rng);
+                    int U = L+604800;
+                    IOStats ios;
+                    Crono tq; tq.iniciar();
+                    auto res = BTree().consulta_rango("b_tree.bin",L,U,&ios);
+                    (void)res;
+                    suma_ms_B += tq.ms();
+                    suma_io_B += ios.lecturas;
+                }
+
+                std::cout << N << ",B," << arbolB.disco.cantidad() << "," << arbolB.disco.cantidad()*sizeof(Nodo)
+                          << "," << tiempoB << "," << ioB.lecturas << "," << ioB.escrituras
+                          << "," << (suma_ms_B/50.0) << "," << (suma_io_B/50.0) << "\n";
+
+                // B+
+                BPlusTree arbolBP;
+                Crono t2; t2.iniciar();
+                for (auto& p : pares) arbolBP.insertar(p.clave, p.valor);
+                double tiempoBP = t2.ms();
+                IOStats ioBP = arbolBP.disco.stats;
+                arbolBP.serializar("bplus_tree.bin");
+
+                double suma_ms_BP=0; double suma_io_BP=0;
+                for (int q=0;q<50;q++){
+                    int L = dist(rng);
+                    int U = L+604800;
+                    IOStats ios;
+                    Crono tq; tq.iniciar();
+                    auto res = BPlusTree().consulta_rango("bplus_tree.bin",L,U,&ios);
+                    (void)res;
+                    suma_ms_BP += tq.ms();
+                    suma_io_BP += ios.lecturas;
+                }
+
+                std::cout << N << ",B+," << arbolBP.disco.cantidad() << "," << arbolBP.disco.cantidad()*sizeof(Nodo)
+                          << "," << tiempoBP << "," << ioBP.lecturas << "," << ioBP.escrituras
+                          << "," << (suma_ms_BP/50.0) << "," << (suma_io_BP/50.0) << "\n";
+            }
+            return 0;
+        }
+
+        std::cerr << "Ejemplos:\n"
+                  << "  ./tarea1 --build --N 32768 --datos datos/datos.bin\n"
+                  << "  ./tarea1 --query --l 1546300800 --u 1546905600 --bplus\n"
+                  << "  ./tarea1 --experimento --datos datos/datos.bin > resultados.csv\n";
+        return 0;
+
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << "\n";
+        return 2;
     }
-
-    int idx_primera_hoja = -1;
-    std::string ruta = argv[1];
-    size_t max_pares = (argc >= 3) ? std::stoull(argv[2]) : 1'000'000;
-
-    bool ok = false;
-    if (ruta.size() >= 4 && ruta.substr(ruta.size()-4) == ".bin") {
-        ok = cargar_bin_a_hojas(disco, ruta, idx_primera_hoja, max_pares);
-        if (ok) std::cout << "[OK] Leído binario desde: " << ruta << " (hasta " << max_pares << " pares)\n";
-    }
-    else {
-        ok = cargar_sample_a_hojas(disco, ruta, idx_primera_hoja);
-        if (ok) std::cout << "[OK] Leído sample desde: " << ruta << "\n";
-    }
-    if (!ok) return 1;
-
-    // Construir B+ y fijar raíz (primera hoja en este caso base)
-    BPlusTree bpt(&disco);
-    bpt.setRaiz(idx_primera_hoja);
-
-    // Descubrir [ℓ, u] recorriendo la lista de hojas
-    Nodo h = disco.leer(idx_primera_hoja);
-    int primera_llave = h.llaves_valores[0].llave;
-    int ultima_llave  = h.llaves_valores[h.k - 1].llave;
-    int pos = h.siguiente;
-
-    while (pos != -1) {
-        h = disco.leer(pos);
-        if (h.k > 0) ultima_llave = h.llaves_valores[h.k - 1].llave;
-        pos = h.siguiente;
-    }
-
-
-    std::cout << "Buscando rango [" << primera_llave << ", " << ultima_llave << "]\n";
-    auto res = bpt.buscarRango(primera_llave, ultima_llave);
-    std::cout << "Total resultados: " << res.size() << "\n";
-    for (size_t i = 0; i < res.size() && i < 10; ++i)
-        std::cout << res[i].llave << " -> " << res[i].valor << "\n";
-    if (res.size() > 10) std::cout << "(... " << (res.size()-10) << " más)\n";
-
-    std::cout << "Lecturas simuladas: " << disco.lecturas
-              << ", Escrituras simuladas: " << disco.escrituras << "\n";
-    return 0;
 }

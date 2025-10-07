@@ -1,33 +1,34 @@
-#ifndef BPLUSTREE_HPP
-#define BPLUSTREE_HPP
-
-#include "disco.hpp"
+#pragma once
 #include <vector>
-
-// BTree+
-// Valores solo en hojas, hojas enlazadas via 'siguiente'
+#include <string>
+#include "node.hpp"
+#include "disk.hpp"
 
 class BPlusTree {
 public:
-    explicit BPlusTree(DiscoSimulado* d);
+    DiskArray disco; // almacenamiento en RAM
 
-    // --- Búsqueda ---
-    // Retorna pares (llave,valor) con l <= llave <= u
-    std::vector<Par> buscarRango(int l, int u) const;
+    BPlusTree();
 
-    int  raizIndex() const { return raiz; }
-    void setRaiz(int idx)  { raiz = idx; }
+    // Resultado al dividir (split) un nodo lleno.
+    struct ResultadoSplit {
+        Nodo izq;
+        Nodo der;
+        Par mediana;
+    };
 
-    // --- Inserción --- (TO DO)
-    
+    static ResultadoSplit partir_nodo(const Nodo& lleno);
+
+    // Inserta una clave en el árbol
+    void insertar(int32_t clave, float valor);
+
+    // Serializa el árbol completo a un archivo binario
+    void serializar(const std::string& ruta);
+
+    // Consulta de rango: retorna todos los pares con clave entre [L, U]
+    std::vector<Par> consulta_rango(const std::string& ruta, int32_t L, int32_t U, IOStats* out_io);
+
 private:
-    DiscoSimulado* disco {nullptr};
-    int raiz {-1};
-
-    // Retorna el índice de la hoja donde debería estar x
-    int bajarAHojaPara(int x) const;
-
-    // --- Split --- (TO DO)
+    // Inserción en un nodo interno no lleno (recursivo)
+    Nodo insertar_en_interno(size_t idx, Nodo actual, int32_t clave, float valor);
 };
-
-#endif

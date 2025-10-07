@@ -10,21 +10,11 @@ dist/
 *.exe
 *.out
 
-# Herramientas/IDE
-.vscode/
-.idea/
-*.code-workspace
-CMakeFiles/
-CMakeCache.txt
-cmake-build-*/
-
-# Logs y temporales
-*.log
-*.tmp
-*.swp
-.DS_Store
-Thumbs.db
-
-# Datos grandes
+# Datos
 datos/*.bin
 *.bin
+tarea1
+resultados.csv
+
+# Herramientas/IDE
+.vscode/
